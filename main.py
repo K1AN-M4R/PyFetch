@@ -2,11 +2,24 @@
 import os
 import platform
 import shutil
+import ctypes
+import textwrap
+
+
+RESET = "\033[0m"
+BOLD = "\033[1m"
+
+PURPLE = "\033[38;5;141m"
+CYAN = "\033[38;5;51m"
+WHITE = "\033[97m"
+GRAY = "\033[38;5;245m"
+
+
+def color(text, code):
+    return f"{code}{text}{RESET}"
 
 
 def get_memory():
-    """Get RAM information on Linux or Windows."""
-
     if os.path.exists("/proc/meminfo"):
         memory = {}
 
@@ -15,15 +28,13 @@ def get_memory():
                 key, value = line.split(":", 1)
                 memory[key] = int(value.strip().split()[0])
 
-        total = memory.get("MemTotal", 0) / (1024 ** 2)
-        available = memory.get("MemAvailable", 0) / (1024 ** 2)
+        total = memory.get("MemTotal", 0) / 1024**2
+        available = memory.get("MemAvailable", 0) / 1024**2
         used = total - available
 
-        return used, total
+        return used, total, available
 
     if platform.system() == "Windows":
-        import ctypes
-
         class MemoryStatus(ctypes.Structure):
             _fields_ = [
                 ("length", ctypes.c_ulong),
@@ -43,16 +54,16 @@ def get_memory():
         if ctypes.windll.kernel32.GlobalMemoryStatusEx(
             ctypes.byref(status)
         ):
-            total = status.total_phys / (1024 ** 3)
-            used = (status.total_phys - status.avail_phys) / (1024 ** 3)
-            return used, total
+            total = status.total_phys / 1024**3
+            available = status.avail_phys / 1024**3
+            used = total - available
 
-    return None, None
+            return used, total, available
+
+    return None, None, None
 
 
 def get_cpu_name():
-    """Get CPU name when available."""
-
     if platform.system() == "Linux":
         try:
             with open("/proc/cpuinfo", encoding="utf-8") as file:
@@ -65,64 +76,206 @@ def get_cpu_name():
     return platform.processor() or "Unknown CPU"
 
 
-def main():
-    os_name = f"{platform.system()} {platform.release()}"
-    python_version = platform.python_version()
-    cpu_name = get_cpu_name()
+def get_cpu_frequency():
+    if platform.system() == "Linux":
+        try:
+            with open("/proc/cpuinfo", encoding="utf-8") as file:
+                for line in file:
+                    if line.lower().startswith("cpu mhz"):
+                        mhz = float(line.split(":", 1)[1].strip())
+                        return f"{mhz / 1000:.2f} GHz"
+        except (OSError, ValueError):
+            pass
 
-    used, total = get_memory()
+    return "Unavailable"
 
+
+def get_os_name():
+    if platform.system() == "Linux":
+        try:
+            with open("/etc/os-release", encoding="utf-8") as file:
+                for line in file:
+                    if line.startswith("PRETTY_NAME="):
+                        return line.split("=", 1)[1].strip().strip('"')
+        except OSError:
+            pass
+
+    return f"{platform.system()} {platform.release()}"
+
+
+def get_storage():
     try:
-        disk = shutil.disk_usage(os.path.expanduser("~"))
-        disk_used = (disk.total - disk.free) / (1024 ** 3)
-        disk_total = disk.total / (1024 ** 3)
-        storage = f"{disk_used:.1f} GB / {disk_total:.1f} GB"
-    except OSError:
-        storage = "Unavailable"
+        path = os.path.expanduser("~")
+        disk = shutil.disk_usage(path)
 
-    ram = (
-        f"{used:.1f} GB / {total:.1f} GB"
-        if total is not None
-        else "Unavailable"
+        used = disk.used / 1024**3
+        total = disk.total / 1024**3
+        free = disk.free / 1024**3
+        percent = (disk.used / disk.total) * 100
+
+        return (
+            f"{used:.1f} GB / {total:.1f} GB "
+            f"({percent:.1f}% used, {free:.1f} GB free)"
+        )
+
+    except OSError:
+        return "Unavailable"
+
+
+def get_uptime():
+    try:
+        if platform.system() == "Linux":
+            with open("/proc/uptime", encoding="utf-8") as file:
+                seconds = float(file.read().split()[0])
+
+        elif platform.system() == "Windows":
+            seconds = (
+                ctypes.windll.kernel32.GetTickCount64() / 1000
+            )
+
+        else:
+            return "Unavailable"
+
+        days = int(seconds // 86400)
+        hours = int((seconds % 86400) // 3600)
+        minutes = int((seconds % 3600) // 60)
+
+        return f"{days}d {hours}h {minutes}m"
+
+    except (OSError, ValueError):
+        return "Unavailable"
+
+
+def make_border(width, left, right):
+    return left + "=" * (width - 2) + right
+
+
+def center(text, width):
+    return text.center(width)
+
+
+def make_header(width):
+    title = (
+        color("Py", PURPLE + BOLD)
+        + color("Fetch", CYAN + BOLD)
     )
 
+    print(color(make_border(width, "+", "+"), PURPLE))
+    print(
+        color("|", PURPLE)
+        + center(title, width - 2)
+        + color("|", PURPLE)
+    )
+    print(color(make_border(width, "+", "+"), CYAN))
+
+
+def make_footer(width):
+    print(color("+" + "=" * (width - 2) + "+", PURPLE))
+
+    footer = (
+        color("[ ", PURPLE)
+        + color("Made with ", GRAY)
+        + color("Python", CYAN + BOLD)
+        + color(" ]", PURPLE)
+    )
+
+    print(
+        color("|", PURPLE)
+        + center(footer, width - 2)
+        + color("|", PURPLE)
+    )
+
+    print(color(make_border(width, "+", "+"), CYAN))
+
+
+def main():
+    used, total, available = get_memory()
+
+    if total is not None:
+        ram_used = f"{used:.2f} GB"
+        ram_available = f"{available:.2f} GB"
+        ram_percent = f"{(used / total) * 100:.1f}%"
+        ram_total = f"{total:.2f} GB"
+    else:
+        ram_used = "Unavailable"
+        ram_available = "Unavailable"
+        ram_percent = "Unavailable"
+        ram_total = "Unavailable"
 
     info = [
-        ("OS", os_name),
-        ("Python", python_version),
-        ("CPU", cpu_name),
-        ("RAM", ram),
-        ("Storage", storage),
+        ("OS", get_os_name()),
+        ("Kernel", platform.release()),
+        ("Architecture", platform.machine()),
+        ("Hostname", platform.node() or "Unknown"),
+        ("CPU", get_cpu_name()),
+        ("CPU Cores", str(os.cpu_count() or "Unknown")),
+        ("CPU Frequency", get_cpu_frequency()),
+        ("RAM Total", ram_total),
+        ("RAM Used", ram_used),
+        ("RAM Available", ram_available),
+        ("RAM Usage", ram_percent),
+        ("Storage", get_storage()),
+        ("Uptime", get_uptime()),
+        ("Python", platform.python_version()),
+        ("Python Path", os.path.abspath(os.sys.executable)),
     ]
 
+    label_width = 14
 
-    label_width = 12
-
-    content_width = max(
-        2 + label_width + 3 + len(value)
+    required_width = max(
+        label_width + len(value) + 7
         for label, value in info
-    )
+    ) + 2
 
-    width = max(48, content_width + 2)
+    terminal_width = shutil.get_terminal_size((80, 20)).columns
+    width = max(40, min(required_width, terminal_width))
 
-    title = " PyFetch "
-    footer = " Made with Python"
+    value_width = max(10, width - label_width - 7)
 
+    if os.name == "nt":
+        os.system("cls")
+    else:
+        os.system("clear")
 
-    width = max(width, len(title) + 4, len(footer) + 4)
+    os.system("")
 
     print()
-    print("╭" + "─" * (width - 2) + "╮")
-    print("│" + title.center(width - 2) + "│")
-    print("├" + "─" * (width - 2) + "┤")
+    make_header(width)
 
     for label, value in info:
-        line = f"  {label:<{label_width}} : {value}"
-        print("│" + line.ljust(width - 2) + "│")
+        parts = textwrap.wrap(
+            value,
+            width=value_width,
+            break_long_words=True,
+            break_on_hyphens=False
+        ) or [""]
 
-    print("│" + " " * (width - 2) + "│")
-    print("│" + footer.center(width - 2) + "│")
-    print("╰" + "─" * (width - 2) + "╯")
+        for index, part in enumerate(parts):
+            if index == 0:
+                prefix = "  "
+                label_text = f"{label:<{label_width}}"
+            else:
+                prefix = "  "
+                label_text = " " * label_width
+
+            plain = prefix + label_text + " : " + part
+            padding = max(0, width - 2 - len(plain))
+
+            line = (
+                color(prefix, WHITE)
+                + color(label_text, PURPLE + BOLD)
+                + color(" : ", GRAY)
+                + color(part, WHITE)
+                + " " * padding
+            )
+
+            print(
+                color("|", PURPLE)
+                + line
+                + color("|", PURPLE)
+            )
+
+    make_footer(width)
     print()
 
 
