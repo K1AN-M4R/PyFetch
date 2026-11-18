@@ -43,10 +43,6 @@ python pyfetch.py
 
 PyFetch aims to provide a simple, lightweight, and dependency-free way to inspect system information through the command line.
 
-📄 License
-
-This project is open-source. See the "LICENSE" file for details.
-
 ---
 
 Made with Python by K1AN-M4R
