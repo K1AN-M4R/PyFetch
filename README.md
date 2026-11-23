@@ -4,23 +4,23 @@ A lightweight, cross-platform system information tool written in Python.
 
 PyFetch displays useful information about your computer directly in the terminal, with a simple interface and no external Python dependencies.
 
-✨ Features
+Features
 
-- 🖥️ CPU Information
-- 🧠 RAM Usage
-- 💾 System Information
-- 🐧 Linux Support
-- 🪟 Windows Support
-- ⚡ Lightweight and Fast
-- 📦 No External Dependencies
+- CPU Information
+- RAM Usage
+- System Information
+- Linux Support
+- Windows Support
+- Lightweight and Fast
+- No External Dependencies
 
-🛠️ Requirements
+Requirements
 
 - Python 3.8 or newer
 - Linux or Windows
 - No external Python packages required
 
-🚀 Installation
+Installation
 
 Clone the repository:
 
@@ -34,12 +34,12 @@ Run PyFetch:
 
 python pyfetch.py
 
-🧰 Built With
+Built With
 
 - Python
 - Python Standard Library
 
-🎯 Project Goals
+Project Goals
 
 PyFetch aims to provide a simple, lightweight, and dependency-free way to inspect system information through the command line.
 
